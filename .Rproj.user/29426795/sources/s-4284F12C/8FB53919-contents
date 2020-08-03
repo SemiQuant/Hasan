@@ -1,0 +1,19 @@
+# Loading "igraph" package
+library(igraph)
+
+# A data frame describing the flow and its capacity in each edge
+E <- rbind(c("ST", "RO", 50), c("ST", "BO", 70), c("ST", "LI", 40), c("RO", "NY", 60), c("BO", "NY", 40), c("BO", "NO", 50), c("LI", "NO", 30), c("NY", "LA", 80), c("NO", "LA", 70))
+colnames(E) <- c("from", "to", "capacity")
+d <- as.data.frame(E)
+
+# The input graph
+g1 <- graph_from_data_frame(d)
+
+# Call max_flow function
+max <- max_flow(g1, source = V(g1)["ST"], target = V(g1)["LA"])
+
+# Plot the optimal solution
+plot(g1, edge.label = max$flow)
+
+
+
