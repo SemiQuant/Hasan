@@ -1,6 +1,10 @@
 CHROM	POS	REF	ALT	TYPE
 rpoC	1221	A	T	SNP
-rpoB	1200	A	A	SNP
-rpoB	1212	A	C	SNP
-rpoB	1213	A	C	SNP
-rpoB	1215	A	G	SNP
+Rv0678_amplicon4  111 . A SNP
+Rv0678_amplicon4  111 . G SNP
+Rv0678_amplicon4  111 . G SNP
+Rv0678_amplicon4  111 . T SNP
+Rv0678_amplicon4  112 . G SNP
+Rv0678_amplicon4  112 . - DEL
+Rv0678_amplicon4  114 . C SNP
+Rv0678_amplicon4  116 . C SNP

@@ -16,18 +16,18 @@ require(visNetwork)
 # )
 
 
-dat <- tibble::tribble(
-         ~Count, ~`1`, ~`2`, ~`3`, ~`4`, ~`5`, ~`6`, ~`7`, ~`8`, ~`9`, ~`10`, ~`11`, ~`12`,
-            10L,  "A",  "A",  "A",  "G",   NA,   NA,   NA,   NA,   NA,    NA,    NA,    NA,
-            90L,  "B",  "A",  "A",  "C",   NA,   NA,   NA,   NA,   NA,    NA,    NA,    NA,
-            17L,   NA,   NA,   NA,  "G",  "A",  "A",   NA,   NA,   NA,    NA,    NA,    NA,
-            83L,   NA,   NA,   NA,  "C",  "T",  "A",   NA,   NA,   NA,    NA,    NA,    NA,
-            30L,   NA,   NA,   NA,   NA,   NA,   NA,  "A",  "C",  "–",   "G",    NA,    NA,
-            70L,   NA,   NA,   NA,   NA,   NA,   NA,  "A",  "C",  "A",   "G",    NA,    NA,
-            50L,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,    NA,   "G",   "G",
-            50L,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,    NA,   "G",   "D"
-         )
-
+# dat <- tibble::tribble(
+#   ~Count, ~`1`, ~`2`, ~`3`, ~`4`, ~`5`, ~`6`, ~`7`, ~`8`, ~`9`, ~`10`, ~`11`, ~`12`,
+#   10L,  "A",  "A",  "A",  "G",   NA,   NA,   NA,   NA,   NA,    NA,    NA,    NA,
+#   90L,  "B",  "A",  "A",  "C",   NA,   NA,   NA,   NA,   NA,    NA,    NA,    NA,
+#   17L,   NA,   NA,   NA,  "G",  "A",  "A",   NA,   NA,   NA,    NA,    NA,    NA,
+#   83L,   NA,   NA,   NA,  "C",  "T",  "A",   NA,   NA,   NA,    NA,    NA,    NA,
+#   30L,   NA,   NA,   NA,   NA,   NA,   NA,  "A",  "C",  "–",   "G",    NA,    NA,
+#   70L,   NA,   NA,   NA,   NA,   NA,   NA,  "A",  "C",  "A",   "G",    NA,    NA,
+#   50L,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,    NA,   "G",   "G",
+#   50L,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,   NA,    NA,   "G",   "D"
+# )
+# 
 
 dat <- tibble::tribble(
   ~Count, ~`1`, ~`2`, ~`3`, ~`4`, ~`5`, ~`6`, ~`7`, ~`8`, ~`9`, ~`10`, ~`11`, ~`12`,
@@ -45,13 +45,6 @@ dat <- tibble::tribble(
 
 dat[dat == "N"] <- NA
 dat
-
-
-
-
-
-
-
 
 
 
@@ -191,8 +184,8 @@ for (node in missing_conn){
   }
   for (to in nxt_pos){
     if (length(nxt_pos)==1){
-    missing_conn_out <- rbind(missing_conn_out, 
-                              c(1, node, to))
+      missing_conn_out <- rbind(missing_conn_out, 
+                                c(1, node, to))
     }else{
       # get the sum of the connections from the next node
       to_weight <- sum(test[grepl(paste0(to, "$"), test$from), "weight"])
@@ -383,8 +376,7 @@ g.tmp <- g
 E(g.tmp)$capacity <- as.integer(E(g.tmp)$weight*1000)
 mf <- max_flow(g.tmp, source = "Y_0", target = "Z")
 E(g)$weight <- mf$flow/1000
-
-
+# test.tmp$capacity=E(g)$weight
 
 
 
@@ -397,49 +389,122 @@ out_remainder <- NULL
 delete_this <- NULL
 delete_this_too <- g
 
+
+max_algo=2
+
+# max_algo=1
+# # take the mac flow and iterate down
+# max_algo=2
+# take the path with the smallest node and find the best path that goes through that node (does not account for ties)
+
+
 # intermediate_gs <- list()
-while (run <= length(all_simple_paths(g, from = "Y_0", to = "Z"))){
-  g.tmp <- g
-  # make largest smallest
-  E(g.tmp)$weight <- 1/(E(g.tmp)$weight) #/max(E(g)$weight))
-  p <- shortest_paths(g.tmp, from = "Y_0", to = "Z", mode = "out")$vpath[[1]]
-  p.weights <- E(g, path = p)$weight
-  # n.nodes <- length(p.weights)
-  p.weights <- p.weights #[-n.nodes]
-  if (!any(p.weights<=0)){
-    out_paths <- out_paths %>% 
-      append(list(p))
-    out_min_weight <- out_min_weight %>% 
-      append(min(p.weights))
-    
-    
-    p.weights.delete <- E(delete_this_too, path = p)$weight
-    delete_this <- c(delete_this,
-                     prod((p.weights.delete/14))
-    )
-    
-    # update weights
-    E(g, path = p)$weight <- p.weights-min(p.weights)
-    E(g, path = p)$weight <- ifelse(E(g, path = p)$weight < 0, 0, E(g, path = p)$weight)
-    # print(E(g, path = p)$weight)
-    
-    # intermediate_gs <- intermediate_gs %>% 
-    #   append(g)
-    
-  }else{
-    run <- run + 1
-  }
-}
+all_paths <- all_simple_paths(g, from = "Y_0", to = "Z")
+
+if (max_algo == 1){
+  while (run <= length(all_paths)){
+    g.tmp <- g
+    # make largest smallest
+    E(g.tmp)$weight <- 1/(E(g.tmp)$weight) #/max(E(g)$weight))
+    p <- shortest_paths(g.tmp, from = "Y_0", to = "Z", mode = "out")$vpath[[1]]
+    p.weights <- E(g, path = p)$weight
+    # n.nodes <- length(p.weights)
+    p.weights <- p.weights #[-n.nodes]
+    if (!any(p.weights<=0)){
+      out_paths <- out_paths %>% 
+        append(list(names(p)))
+      out_min_weight <- out_min_weight %>% 
+        append(min(p.weights))
+      
+      
+      p.weights.delete <- E(delete_this_too, path = p)$weight
+      delete_this <- c(delete_this,
+                       prod((p.weights.delete/14))
+      )
+      
+      # update weights
+      E(g, path = p)$weight <- p.weights-min(p.weights)
+      E(g, path = p)$weight <- ifelse(E(g, path = p)$weight < 0, 0, E(g, path = p)$weight)
+      # print(E(g, path = p)$weight)
+      
+      # intermediate_gs <- intermediate_gs %>% 
+      #   append(g)
+      
+    }else{
+      run <- run + 1
+    }
+  }}else if (max_algo == 2){
+    while (run <= length(all_paths)){
+      all_paths <- all_simple_paths(g.tmp, from = "Y_0", to = "Z")
+      # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+      all_paths_cost <- lapply(all_paths, function(p) 
+        sum(E(g.tmp, path = p)$weight))
+      # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+      all_paths <- all_paths[order(unlist(all_paths_cost), decreasing = F)]
+      
+      all_paths_weight <- lapply(all_paths, function(p) ifelse(
+        min(E(g.tmp, path = p)$weight)>0,
+        sum(E(g.tmp, path = p)$weight-min(E(g.tmp, path = p)$weight)),
+        NA
+      ))
+      if (all(is.na(all_paths_weight))){
+        break
+      }else{
+        p <- all_paths[[which.min(all_paths_weight)]]
+        p.weights <- E(g.tmp, path = p)$weight
+        
+        out_paths <- append(out_paths, list(names(p)))
+        out_min_weight <- append(out_min_weight, min(p.weights))
+        
+        # update weights
+        E(g.tmp, path = p)$weight <- p.weights-min(p.weights)
+        
+        run <- run + 1
+      }
+    }}
+# }}else if (max_algo == 2){
+#   while (run <= length(all_paths)){
+#     all_paths <- all_simple_paths(g.tmp, from = "Y_0", to = "Z")
+#     # if (max_algo == 3){
+#     #   all_paths_weight <- lapply(all_paths, function(p) ifelse(
+#     #     min(E(g.tmp, path = p)$weight)>0,
+#     #     min(E(g.tmp, path = p)$weight),
+#     #     NA
+#     #   ))
+#     # }else{
+#     all_paths_weight <- lapply(all_paths, function(p) ifelse(
+#       min(E(g.tmp, path = p)$weight)>0,
+#       sum(E(g.tmp, path = p)$weight-min(E(g.tmp, path = p)$weight)),
+#       NA
+#     ))
+#     # }
+#     if (all(is.na(all_paths_weight))){
+#       break
+#     }else{
+#       p <- all_paths[[which.min(all_paths_weight)]]
+#       p.weights <- E(g.tmp, path = p)$weight
+#       
+#       out_paths <- append(out_paths, list(names(p)))
+#       out_min_weight <- append(out_min_weight, min(p.weights))
+#       
+#       # update weights
+#       E(g.tmp, path = p)$weight <- p.weights-min(p.weights)
+#       
+#       run <- run + 1
+#     }
+#   }}
+
+
 
 out_remainder <- g
 
-for (i in 1:length(out_paths)){
-  out_paths[[i]] <- names(out_paths[[i]])
-}
+# for (i in 1:length(out_paths)){
+#   out_paths[[i]] <- names(out_paths[[i]])
+# }
 df_out <- cbind(freq = unlist(out_min_weight), 
                 # delete_this = delete_this,
                 do.call(rbind.data.frame, out_paths))
-
+df_out$freq <- round(df_out$freq/sum(df_out$freq), 2)
 
 
 df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub("_.*", "", x)) %>% 
@@ -451,8 +516,11 @@ df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub("_.*", "", 
 # out_paths
 # out_min_weight
 
-
-data2 <- toVisNetworkData(g)
+if (max_algo==1){
+  data2 <- toVisNetworkData(g)
+}else{
+  data2 <- toVisNetworkData(g.tmp)
+}
 data2$edges$label <- round(data2$edges$weight, 3)
 data2$edges$value <- data2$edges$weight*5
 data2$nodes$color.highlight.border <- "red"
@@ -463,3 +531,7 @@ n2 <- visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
 
 n2
 
+# df_out$run <- "3"
+# # a=df_out
+# colnames(df_out) <- colnames(a)
+# a=rbind(a, df_out)
