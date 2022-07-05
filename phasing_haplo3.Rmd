@@ -579,10 +579,4 @@ visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
   visHierarchicalLayout(sortMethod = "directed", direction = "LR")
 
 
-
-
-
-
-
-
 ```
