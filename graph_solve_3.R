@@ -62,8 +62,6 @@ dat
 
 
 
-
-
 dat$`0` <- ifelse(is.na(dat$`1`), NA, "Y")
 dat <- dat %>% 
   select(Count, `0`, everything())
@@ -84,7 +82,7 @@ colnames(freq) <- colnames(dat)
 
 
 
-# if NA before or after then skip, elase, add _row
+# if NA before or after then skip, else, add _row
 for (r in 1:nrow(dat)){
   for (c in 2:ncol(dat)){
     if (c < ncol(dat) -1){
