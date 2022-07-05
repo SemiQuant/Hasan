@@ -1,6 +1,8 @@
 ```{r setup, include=FALSE, echo=TRUE}
 require(reticulate)
 reticulate::use_condaenv("hasan", required = TRUE)
+
+
 ```
 
 <!-- #TODO -->
@@ -124,12 +126,23 @@ phase_out <- phase_out[grepl("[agctAGCT]", phase_out$Seq), ]
 
 
 ```{r get haplos}
+require(DT)
+# phase_out <- tibble::tribble(
+#   ~Seq, ~rv0678_500_489, ~rv0678_500_874, ~rv0678_500_875, ~Count,
+#   "ANC",             "A",             "N",             "N",  7931L,
+#   "CNT",             "C",             "C",             "T",   400L,
+#   "ACN",             "A",             "C",             "T",   131L,
+#   "ATN",             "A",             "T",             "T",  3329L,
+#   "CTT",             "C",             "T",             "T",   343L
+# )
+
+
 require(igraph)
 phase_tmp <- phase_out
 
 # TODO
 # for now, remove those with gaps in the middle
-phase_tmp <- phase_tmp[!grepl("[AGCT-]N[AGCT-]", phase_tmp$Seq),]
+# phase_tmp <- phase_tmp[!grepl("[AGCT-]N[AGCT-]", phase_tmp$Seq),]
 # phase_tmp <- phase_tmp[phase_tmp$Seq!="NNNN",]
 
 
@@ -142,8 +155,8 @@ dat <- as_tibble(dat)
 
 
 # add start position
-# dat$strt <- ifelse(is.na(dat[,1]), NA, "Y")
-dat$strt <- ifelse(is.na(unlist(dat[,1])), NA, "Y")
+# dat$strt <- ifelse(is.na(unlist(dat[,1])), NA, "Y")
+dat$strt <- "Y"
 
 dat <- dat %>% 
   select(Count, strt, everything()) %>% 
@@ -160,6 +173,8 @@ for (c in 2:ncol(dat)){
   freq <- cbind(freq, d)
 }
 colnames(freq) <- colnames(dat)
+
+
 
 
 # if NA before or after then skip, else, add _row
@@ -192,6 +207,60 @@ for (r in 1:nrow(dat)){
 }
 
 
+for (c in 3:ncol(freq)){
+  freq[,c] <- ifelse(freq[,c] == 0, freq[,c-1], freq[,c])
+}
+
+
+
+
+# if an na, make all possible
+# change to apply, dont this way first for ease
+
+
+
+while(sum(is.na(dat))>0){
+  for (r in 1:nrow(dat)){
+    for (cl in 3:ncol(dat)){
+      if (is.na(dat[r,cl])){
+        tmp <- dat[r,cl]
+        pos <- paste0(unlist(na.omit(dat[,cl])) %>% strtrim(1) %>% unique(),
+                      "_", gsub(".*_", "", colnames(dat[,cl])))
+        tmp <- do.call("rbind", replicate(length(pos), dat[r,], simplify = FALSE))
+        tmp[,cl] <- pos
+        tmp.freq <- do.call("rbind", replicate(length(pos), freq[r,], simplify = FALSE))
+        # tmp.freq[,cl] <- tmp.freq[,cl]/nrow(pos)
+        tmp.freq <- tmp.freq/length(pos)
+        dat <- dat[-r,]
+        freq <- freq[-r,]
+        dat <- rbind(dat, tmp)
+        freq <- rbind(freq, tmp.freq)
+        
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 test <- NULL
 for (c in seq(ncol(dat)-1)){
@@ -203,27 +272,27 @@ for (c in seq(ncol(dat)-1)){
   }
 }
 
-
-test <- test[!(is.na(test$from)),] #test <- test[complete.cases(test),]
-
-
-# if there is a from to a NA, and that from also occurs to a non NA to, then add an equal portion to those occurrences
-# TODO
-# i don't think this should be an equal proportion, come fix
-tmp.join <- test[is.na(test$to), ]
-for (i in unique(tmp.join$from)){
-  # i=unique(tmp.join$from)[1]
-  if (sum(i==test$to, na.rm = T) == 1){
-    # print(i)
-    # print(sum(test[test$from == i, "weight"]))
-    test[test$from == i, "weight"] <- sum(test[test$from == i, "weight"])
-  }
-}
-# tmp.join <- tmp.join[tmp.join$from%in%test$to,]
-# tmp.join
-
-
-test <- test[complete.cases(test),]
+# 
+# test <- test[!(is.na(test$from)),] #test <- test[complete.cases(test),]
+# 
+# 
+# # if there is a from to a NA, and that from also occurs to a non NA to, then add an equal portion to those occurrences
+# # TODO
+# # i don't think this should be an equal proportion, come fix
+# tmp.join <- test[is.na(test$to), ]
+# for (i in unique(tmp.join$from)){
+#   # i=unique(tmp.join$from)[1]
+#   if (sum(i==test$to, na.rm = T) == 1){
+#     # print(i)
+#     # print(sum(test[test$from == i, "weight"]))
+#     test[test$from == i, "weight"] <- sum(test[test$from == i, "weight"])
+#   }
+# }
+# # tmp.join <- tmp.join[tmp.join$from%in%test$to,]
+# # tmp.join
+# 
+# 
+# test <- test[complete.cases(test),]
 
 
 
@@ -299,6 +368,7 @@ test$from[grepl("^Y", test$from)] <- "Y_0"
 
 g <- graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) %>% 
   set_edge_attr("weight", value = test$weight)
+
 
 # plot(g)
 require(visNetwork)
@@ -451,8 +521,17 @@ df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub("_.*", "", 
   as.data.frame() %>% 
   unite("Seq", sep = "")
 
-df_out
+df_out <- apply(df_out, 2, function(x) gsub(".*_", "", x))
 
+
+df_out <- df_out %>% 
+  as_tibble() %>% 
+  group_by(across(-c(1))) %>% 
+  mutate(freq = sum(as.numeric(freq))) %>% 
+  unique()
+
+
+DT::datatable(df_out)
 
 
 if (max_algo==1){
@@ -469,6 +548,7 @@ n2 <- visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
   visInteraction(multiselect=T, selectable=T)
 
 n2
+
 
 
 ```
