@@ -1,4 +1,5 @@
 ```{r setup, include=FALSE, echo=TRUE}
+<<<<<<< HEAD
 require(DT)
 require(visNetwork)
 require(igraph)
@@ -27,11 +28,31 @@ source("inputs.R")
 ```
 
 ```{python phase mutations, include=FALSE, echo=FALSE}
+=======
+require(reticulate)
+reticulate::use_condaenv("hasan", required = TRUE)
+
+
+```
+
+<!-- #TODO -->
+<!-- add if input file has G,A that these are then separated -->
+<!-- need to sort the input file by chrom then position -->
+<!-- need to mask all calls that arent reference or alt for each read, as we not calling mutations here but rather haploypes -->
+<!-- can this deal with indels properly yet? -->
+ <!-- Fix the fact that you have to add the reference to the input, but I suppose this is fine as you only want to look at those mutations, and what if the reference isnt part of them? -->
+
+```{python phase mutations, include=FALSE}
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 import pysam
 from collections import Counter
 import pandas as pd
 # samfile = pysam.AlignmentFile("/Users/SemiQuant/Downloads/BDQ_haplo/TB-B240-054_S26-bowtie2.bam", "rb")
+<<<<<<< HEAD
 samfile = pysam.AlignmentFile(r.bam, "rb")
+=======
+samfile = pysam.AlignmentFile("/Users/SemiQuant/Bioinformatics/Projects/Hasan/test/test2/test_pairedBWA_sorted.bam", "rb")
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 
 # var_dic will be snps/indels, if also adding reference then edit the below
 # import numpy as np
@@ -41,7 +62,11 @@ samfile = pysam.AlignmentFile(r.bam, "rb")
 var_dic = {}
 # this is gross, but i dont really speak python 
 # with open("/Users/SemiQuant/Bioinformatics/Projects/Hasan/snps.tsv") as f:
+<<<<<<< HEAD
 with open(r.snps) as f:
+=======
+with open("/Users/SemiQuant/Bioinformatics/Projects/Hasan/test/test2/snps.tsv") as f:
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
     next(f) # skip header line
     for line in f:
         (CHROM, POS, REF, ALT, TYPE) = line.split()
@@ -116,6 +141,7 @@ var_df.columns = cnms
 # var_df.to_pickle("/Users/semiquant/Bioinformatics/Projects/Hasan/test/var_df.pkl")
 ```
 
+<<<<<<< HEAD
 <!-- ```{python phase mutations savefile, include=FALSE} -->
 
 <!-- import pandas as pd -->
@@ -127,6 +153,19 @@ var_df.columns = cnms
 ```{r import and style matrix, echo=FALSE}
 # require(stringr)
 # require(tidyverse)
+=======
+
+```{python phase mutations savefile, include=FALSE}
+import pandas as pd
+
+var_df = pd.read_pickle("/Users/semiquant/Bioinformatics/Projects/Hasan/test/var_df.pkl")
+```
+
+
+```{r import and style matrix}
+require(stringr)
+require(tidyverse)
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 phase_out <- py$var_df
 phase_out[phase_out == "NaN"] <- "N"
 phase_out <- phase_out %>% 
@@ -138,8 +177,14 @@ phase_out <- phase_out %>% unite("Seq", -Count, remove = F, sep = '')
 phase_out <- phase_out[grepl("[agctAGCT]", phase_out$Seq), ]
 ```
 
+<<<<<<< HEAD
 ```{r get haplos, echo=FALSE}
 # require(DT)
+=======
+
+```{r get haplos}
+require(DT)
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 # phase_out <- tibble::tribble(
 #   ~Seq, ~rv0678_500_489, ~rv0678_500_874, ~rv0678_500_875, ~Count,
 #   "ANC",             "A",             "N",             "N",  7931L,
@@ -150,7 +195,11 @@ phase_out <- phase_out[grepl("[agctAGCT]", phase_out$Seq), ]
 # )
 
 
+<<<<<<< HEAD
 # require(igraph)
+=======
+require(igraph)
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 phase_tmp <- phase_out
 
 # TODO
@@ -384,7 +433,11 @@ g <- graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) %>%
 
 
 # plot(g)
+<<<<<<< HEAD
 # require(visNetwork)
+=======
+require(visNetwork)
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 data <- toVisNetworkData(g)
 data$edges$label <- round(data$edges$weight, 3)
 data$edges$value <- data$edges$weight*5
@@ -552,6 +605,7 @@ if (max_algo==1){
 }else{
   data2 <- toVisNetworkData(g.tmp)
 }
+<<<<<<< HEAD
 
 
 
@@ -582,7 +636,22 @@ visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
 
 
 
+=======
+data2$edges$label <- round(data2$edges$weight, 3)
+data2$edges$value <- data2$edges$weight*5
+data2$nodes$color.highlight.border <- "red"
+n2 <- visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
+  visEdges(arrows = "to") %>% 
+  visPhysics(enabled = F) %>% 
+  visInteraction(multiselect=T, selectable=T)
+
+n2
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
 
 
 
 ```
+<<<<<<< HEAD
+=======
+
+>>>>>>> b13ec9d4377a6b6ebf618a05233babaf93230f71
