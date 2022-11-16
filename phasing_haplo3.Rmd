@@ -192,23 +192,34 @@ colnames(freq) <- colnames(dat)
 
 # if NA before or after then skip, else, add _row
 # LOOOOL, look at this monstrocity, be less of a cunt bro
+# for (r in 1:nrow(dat)){
+#   for (c in 3:ncol(dat)){
+#     if (c == ncol(dat)){
+#       if (!is.na(dat[r, c])){
+#         dat[r, c] <- paste0(dat[r, c], "_", r)
+#       }
+#     }else{
+#       if (!is.na(dat[r, c])){
+#         if (is.na(dat[r, c-1]) | is.na(dat[r, c+1])){
+#           #arg
+#         }else{
+#           dat[r, c] <- paste0(dat[r, c], "_", r)
+#         }
+#       }
+#     }
+#   }
+# }
+
+# untested
+
 for (r in 1:nrow(dat)){
   for (c in 3:ncol(dat)){
-    if (c == ncol(dat)){
-      if (!is.na(dat[r, c])){
-        dat[r, c] <- paste0(dat[r, c], "_", r)
-      }
-    }else{
-      if (!is.na(dat[r, c])){
-        if (is.na(dat[r, c-1]) | is.na(dat[r, c+1])){
-          #arg
-        }else{
-          dat[r, c] <- paste0(dat[r, c], "_", r)
-        }
-      }
+    if (!is.na(dat[r, c]) & (!is.na(dat[r, c-1]) | !is.na(dat[r, c+1]))){
+      dat[r, c] <- paste0(dat[r, c], "_", r)
     }
   }
 }
+
 
 
 
