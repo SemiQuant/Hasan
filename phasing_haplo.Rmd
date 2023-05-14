@@ -1,0 +1,363 @@
+```{r setup, include=FALSE, echo=TRUE}
+require(DT)
+require(visNetwork)
+require(igraph)
+require(stringr)
+require(tidyverse)
+require(reticulate)
+reticulate::use_condaenv("hasan", required = TRUE)
+```
+
+<!-- #TODO -->
+<!-- add if input file has G,A that these are then separated -->
+<!-- need to sort the input file by chrom then position -->
+<!-- need to mask all calls that arent reference or alt for each read, as we not calling mutations here but rather haploypes -->
+<!-- can this deal with indels properly yet? -->
+<!-- Fix the fact that you have to add the reference to the input, but I suppose this is fine as you only want to look at those mutations, and what if the reference isnt part of them? -->
+
+```{r inputs, include=FALSE, echo=FALSE}
+source("inputs.R")
+```
+
+```{python phase mutations, include=FALSE, echo=FALSE}
+import pysam
+from collections import Counter
+import pandas as pd
+samfile = pysam.AlignmentFile(r.bam, "rb")
+var_dic = {}
+
+with open(r.snps) as f:
+  next(f) # skip header line
+  for line in f:
+    (CHROM, POS, REF, ALT, TYPE) = line.split()
+    var_dic.setdefault(CHROM, {}).setdefault(int(POS), {}).setdefault('call', []).append(ALT)
+    
+    for chrom in var_dic:
+      if chrom not in samfile.references:
+        print(chrom, " not found in bam file!")
+        continue
+      for i in var_dic[chrom]:
+        read_calls = {}
+        for pileupcolumn in samfile.pileup(chrom, i, i+1):
+          for pileupread in pileupcolumn.pileups:
+            try:
+              ref_pos = pileupread.alignment.get_reference_positions()[pileupread.query_position]
+              if ref_pos == i and not pileupread.is_del:
+                query_name = pileupread.alignment.query_name
+                read_call_tmp = pileupread.alignment.query_sequence[pileupread.query_position]
+                if query_name in read_calls:
+                  if read_calls[query_name] == read_call_tmp:
+                    break
+                  else:
+                    var_dic[chrom][i][query_name] = "N"
+                    else:
+                      if read_call_tmp in var_dic[chrom][i]["call"]:
+                        var_dic[chrom][i][query_name] = read_call_tmp
+                        else:
+                          var_dic[chrom][i][query_name] = "N"
+                          read_calls[query_name] = read_call_tmp
+                          except:
+                            pass
+                          
+                          
+                          # Convert the dictionary to a pandas dataframe
+                          var_df = pd.DataFrame.from_dict({(i,j): var_dic[i][j] for i in var_dic.keys() for j in var_dic[i].keys()}, orient='columns')
+                          # Rename the columns of the dataframe to include the chromosome and position information
+cnms = []
+for col in var_df.columns.values:
+  cnms.append(col[0] + "_" + str(col[1]))
+  
+var_df.columns = cnms
+var_df = var_df.drop(var_df.index[0])
+                            
+```
+                            
+                            
+```{r import and style matrix, echo=FALSE}
+# Concatenate values in each column and replace "NaN" with "N"
+phase_out <- data.frame(apply(py$var_df, 2, function(col) sapply(col, paste, collapse="")))
+phase_out[phase_out == "NaN"] <- "N"
+
+# Group by all columns, count rows and concatenate values in all columns
+phase_out <- phase_out %>% 
+group_by_all() %>% 
+summarise(Count = n()) %>% 
+unite("Seq", -Count, remove = F, sep = '')
+
+# Remove rows with only "N"s
+phase_out <- phase_out[grepl("[agctAGCT]", phase_out$Seq), ]
+
+```
+
+```{r get haplos, echo=FALSE}
+# require(igraph)
+phase_tmp <- phase_out
+dat <- phase_tmp[-c(1)]
+dat <- apply(dat, 2, function(x) as.character(x))
+dat[dat == "N"] <- NA
+# remove only NA columns
+dat <- dat[,apply(dat, 2, function(x) sum(is.na(x))) < nrow(dat)]
+dat <- as_tibble(dat)
+dat$strt <- "Y"
+dat <- dat %>% 
+  select(Count, strt, everything()) %>% 
+  mutate(Count = as.numeric(Count))
+
+dat$end <- "Z"
+
+freq <- data.frame(dat[c(1)])
+for (c in 2:ncol(dat)){
+  d <- dat[,c(1, c)]
+  d.sum <- sum(d[complete.cases(d),]$Count)
+  d$Count[is.na(d[c(2)])] <- 0
+  d <- d$Count/d.sum
+  freq <- cbind(freq, d)
+}
+colnames(freq) <- colnames(dat)
+
+for (r in 1:nrow(dat)){
+  for (c in 3:(ncol(dat))-1){
+    if (!is.na(dat[r, c]) & (!is.na(dat[r, c-1]) | !is.na(dat[r, c+1]))){
+      dat[r, c] <- paste0(dat[r, c], "_", r)
+    }
+  }
+}
+
+
+for (c in 3:ncol(dat)){
+  dat[,c] <- paste0(unlist(dat[,c]), "_", gsub(".*_", "", colnames(dat)[c]))
+}
+for (r in 1:nrow(dat)){
+  dat[r,][grepl("NA_", dat[r,])] <- NA
+}
+
+
+for (c in 3:ncol(freq)){
+  freq[,c] <- ifelse(freq[,c] == 0, freq[,c-1], freq[,c])
+}
+
+while(sum(is.na(dat))>0){
+  for (r in 1:nrow(dat)){
+    for (cl in 3:ncol(dat)){
+      if (is.na(dat[r,cl])){
+        tmp <- dat[r,cl]
+        pos <- paste0(unlist(na.omit(dat[,cl])) %>% strtrim(1) %>% unique(),
+                      "_", gsub(".*_", "", colnames(dat[,cl])))
+        tmp <- do.call("rbind", replicate(length(pos), dat[r,], simplify = FALSE))
+        tmp[,cl] <- pos
+        tmp.freq <- do.call("rbind", replicate(length(pos), freq[r,], simplify = FALSE))
+        # tmp.freq[,cl] <- tmp.freq[,cl]/nrow(pos)
+        tmp.freq <- tmp.freq/length(pos)
+        dat <- dat[-r,]
+        freq <- freq[-r,]
+        dat <- rbind(dat, tmp)
+        freq <- rbind(freq, tmp.freq)
+        
+      }
+    }
+  }
+}
+
+
+test <- NULL
+for (c in seq(ncol(dat)-1)){
+  if (c>1){
+    test.tmp <- dat[,c(1, c, c+1)]
+    test.tmp$Count <- unlist(freq[c])
+    colnames(test.tmp) <- c("weight", "from", "to")
+    test <- rbind(test, test.tmp)
+  }
+}
+
+
+
+# add  first, Y, and final, Z connection
+all_nodes <- unique(c(test$from, test$to))
+missing_conn_out <- data.frame()
+
+# add in missing connections
+missing_conn <- all_nodes[!all_nodes%in%test$from]
+missing_conn <- missing_conn[missing_conn != "Z_end"]
+
+if (length(missing_conn) > 0 ){
+  
+  for (node in missing_conn){
+    pos <- as.integer(tail(str_split(node, "_")[[1]], 1))
+    if (pos == as.integer(gsub(".*_", "", colnames(dat)[ncol(dat)]))){
+      nxt_pos <- "Z"
+    }else{
+      nxt_pos <- all_nodes[grepl(paste0("_", pos+1, "$"), all_nodes)]
+    }
+    for (to in nxt_pos){
+      if (length(nxt_pos)==1){
+        missing_conn_out <- rbind(missing_conn_out, 
+                                  c(1, node, to))
+      }else{
+        # get the sum of the connections from the next node
+        to_weight <- sum(test[grepl(paste0(to, "$"), test$from), "weight"])
+        missing_conn_out <- rbind(missing_conn_out, 
+                                  c(to_weight, node, to))
+      }
+    }
+  }
+  
+  
+  ##############################################################################################################
+  # TODO
+  # PROBLEM HAPPENDS IF THERE IS NO POSSIBLILTY FOR A SEQUENCE, I.E., THERE ARE NO SEQS THAT END BEFORE IT STARTS
+  
+  missing_conn_in <- all_nodes[!all_nodes%in%test$to]
+  missing_conn_in <- missing_conn_in[!grepl("^Y$", missing_conn_in)]
+  # gsub(".*_", "", missing_conn_in)
+  for (node in missing_conn_in){
+    missing_conn_out <- rbind(missing_conn_out, 
+                              c(1, "Y", node))
+  }
+  ##############################################################################################################
+  
+  colnames(missing_conn_out) <- colnames(test)
+  missing_conn_out$weight <- as.numeric(missing_conn_out$weight)
+  test <- rbind(test,
+                missing_conn_out)
+}
+
+test <- test %>% 
+  group_by(from) %>% 
+  mutate(weight = ifelse(weight>=1, weight/sum(weight), weight))
+
+test$from[grepl("^Y", test$from)] <- "Y_0"
+
+g <- graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) %>% 
+  set_edge_attr("weight", value = test$weight)
+
+
+# plot(g)
+# require(visNetwork)
+data <- toVisNetworkData(g)
+data$edges$label <- round(data$edges$weight, 3)
+data$edges$value <- data$edges$weight*5
+data$nodes$color.highlight.border <- "red"
+n <- visNetwork(nodes = data$nodes, edges = data$edges) %>%
+  visEdges(arrows = "to") %>% 
+  visPhysics(enabled = F)
+n %>% 
+  visInteraction(multiselect=T, selectable=T) %>% 
+  visOptions(selectedBy = list(
+    variable = "label",
+    style = "width:500px",
+    multiple = TRUE, sort = FALSE
+  ))
+
+
+# I think this will act to reweight those tht cross over to the min
+test.tmp <- test
+test.tmp$capacity <- test.tmp$weight
+g.tmp <- g
+E(g.tmp)$capacity <- as.integer(E(g.tmp)$weight*1000)
+mf <- max_flow(g.tmp, source = "Y_0", target = "Z_end")
+E(g)$weight <- mf$flow/1000
+
+# this is basically ba slightly edited, bad version of the max flow algorithm
+run <- 0
+out_paths <- out_min_weight <- list()
+out_remainder <- NULL
+delete_this <- NULL
+delete_this_too <- g
+
+
+# intermediate_gs <- list()
+all_paths <- all_simple_paths(g, from = "Y_0", to = "Z_end")
+
+
+while (run <= length(all_paths)){
+  all_paths <- all_simple_paths(g.tmp, from = "Y_0", to = "Z_end")
+  # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+  all_paths_cost <- lapply(all_paths, function(p) 
+    sum(E(g.tmp, path = p)$weight))
+  # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+  all_paths <- all_paths[order(unlist(all_paths_cost), decreasing = F)]
+  
+  all_paths_weight <- lapply(all_paths, function(p) ifelse(
+    min(E(g.tmp, path = p)$weight)>0,
+    sum(E(g.tmp, path = p)$weight-min(E(g.tmp, path = p)$weight)),
+    NA
+  ))
+  if (all(is.na(all_paths_weight))){
+    break
+  }else{
+    p <- all_paths[[which.min(all_paths_weight)]]
+    p.weights <- E(g.tmp, path = p)$weight
+    
+    out_paths <- append(out_paths, list(names(p)))
+    out_min_weight <- append(out_min_weight, min(p.weights))
+    
+    # update weights
+    E(g.tmp, path = p)$weight <- p.weights-min(p.weights)
+    
+    run <- run + 1
+  }
+}
+
+
+out_remainder <- g
+
+df_out <- cbind(freq = unlist(out_min_weight), 
+                do.call(rbind.data.frame, out_paths))
+df_out$freq <- round(df_out$freq/sum(df_out$freq), 3)
+
+
+# TODO
+# this is a quick fox for the broken code in the TODO above
+for (col in ncol(df_out):3){
+  df_out[,col] <- ifelse(rowSums(df_out[,col:2] == "Z") == 1, "N", df_out[,col])
+}
+df_out[ncol(df_out)] <- "Z"
+
+
+df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub("_.*", "", x)) %>% 
+  as.data.frame() %>% 
+  unite("Seq", sep = "")
+
+
+colnames(df_out)[3:(ncol(df_out)-1)] <- apply(df_out, 2, function(x) gsub(".*_", "", x))[1,3:(ncol(df_out)-1)]
+df_out <- apply(df_out, 2, function(x) gsub("_.*", "", x))
+
+df_out <- df_out %>% 
+  as_tibble() %>% 
+  select(-Z) %>% 
+  group_by(across(-c(1))) %>% 
+  mutate(freq = sum(as.numeric(freq))) %>% 
+  unique() 
+
+df_out <- df_out[-c(2)]
+
+DT::datatable(df_out)
+
+
+data2 <- toVisNetworkData(g.tmp)
+data2$edges$label <- round(data2$edges$weight, 3)
+data2$edges$value <- data2$edges$weight*5
+data2$nodes$color.highlight.border <- "red"
+
+
+
+data2$nodes <- data2$nodes[data2$nodes$id != "Y_0",]
+data2$edges <- data2$edges[data2$edges$from != "Y_0", ]
+
+
+data2$nodes$label <- gsub("_.*", "", data2$nodes$label)
+data2$nodes$color <- adegenet::fac2col(data2$nodes$label)
+
+data2$edges$label <- data2$edges$title <- as.character(gsub("_.*", "", data2$edges$label))
+
+
+visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
+  visEdges(arrows = "to") %>%
+  visPhysics(enabled = F) %>%
+  visInteraction(multiselect=T, selectable=T) %>%
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+  visHierarchicalLayout(sortMethod = "directed", direction = "LR")
+
+
+
+```

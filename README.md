@@ -25,7 +25,9 @@ conda env create -n hasan --file hasan_conda.yml
 
 # Usage
 
+'''
 bash run_haplo.sh "path to bam file" "path to snps file"
+'''
 
 ### Example snps file (tsv)
 

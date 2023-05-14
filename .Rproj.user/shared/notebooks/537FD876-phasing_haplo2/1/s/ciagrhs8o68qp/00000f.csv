@@ -1,0 +1,13 @@
+"0","require(stringr)"
+"0","require(tidyverse)"
+"0","phase_out <- py$var_df"
+"0","phase_out[phase_out == ""NaN""] <- ""N"""
+"0","phase_out <- phase_out %>% "
+"0","  group_by_all() %>% "
+"0","  summarise(Count = n())"
+"1","[38;5;254m`summarise()` has grouped output by 'rv0678_500_489'. You can override using the `.groups` argument.[39m
+"
+"0","phase_out <- phase_out %>% unite(""Seq"", -Count, remove = F, sep = '')"
+"0",""
+"0","# remove rows with only Ns"
+"0","phase_out <- phase_out[grepl(""[agctAGCT]"", phase_out$Seq), ]"

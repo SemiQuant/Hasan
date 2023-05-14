@@ -1,0 +1,3 @@
+"0","quit"
+"0","require(reticulate)"
+"0","reticulate::use_condaenv(""hasan"", required = TRUE)"

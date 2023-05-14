@@ -1,8 +1,0 @@
-name: hasan
-channels:
-  - bioconda
-dependencies:
-  - python=3.9
-  - pip
-  - pysam
-  - pandas

@@ -1,0 +1,331 @@
+phase_tmp <- phase_out
+for now, remove those with gaps in the middle
+phase_tmp <- phase_tmp[!grepl("[AGCT-]N[AGCT-]", phase_tmp$Seq),]
+phase_tmp <- phase_tmp[phase_tmp$Seq!="NNNN",]
+
+
+
+dat <- phase_tmp[-c(1)]
+dat <- apply(dat, 2, function(x) as.character(x))
+dat[dat == "N"] <- NA
+# remove only NA columns
+dat <- dat[,apply(dat, 2, function(x) sum(is.na(x))) < nrow(dat)]
+dat <- as_tibble(dat)
+
+
+# add start position
+dat$strt <- ifelse(is.na(dat[,1]), NA, "Y")
+
+dat <- dat %>% 
+  select(Count, strt, everything()) %>% 
+  mutate(Count = as.numeric(Count))
+
+
+
+freq <- data.frame(dat[c(1)])
+for (c in 2:ncol(dat)){
+  d <- dat[,c(1, c)]
+  d.sum <- sum(d[complete.cases(d),]$Count)
+  d$Count[is.na(d[c(2)])] <- 0
+  d <- d$Count/d.sum
+  freq <- cbind(freq, d)
+}
+colnames(freq) <- colnames(dat)
+
+
+# if NA before or after then skip, else, add _row
+# LOOOOL, look at this monstrocity, be less of a cunt bro
+for (r in 1:nrow(dat)){
+  for (c in 3:ncol(dat)){
+    if (c == ncol(dat)){
+      if (!is.na(dat[r, c])){
+        dat[r, c] <- paste0(dat[r, c], "_", r)
+      }
+    }else{
+      if (!is.na(dat[r, c])){
+        if (is.na(dat[r, c-1]) | is.na(dat[r, c+1])){
+          #arg
+        }else{
+          dat[r, c] <- paste0(dat[r, c], "_", r)
+        }
+      }
+    }
+  }
+}
+
+
+
+for (c in 3:ncol(dat)){
+  dat[,c] <- paste0(unlist(dat[,c]), "_", gsub(".*_", "", colnames(dat)[c]))
+}
+for (r in 1:nrow(dat)){
+  dat[r,][grepl("NA_", dat[r,])] <- NA
+}
+
+
+
+test <- NULL
+for (c in seq(ncol(dat)-1)){
+  if (c>1){
+    test.tmp <- dat[,c(1, c, c+1)]
+    test.tmp$Count <- unlist(freq[c])
+    colnames(test.tmp) <- c("weight", "from", "to")
+    test <- rbind(test, test.tmp)
+  }
+}
+
+
+test <- test[!(is.na(test$from)),] #test <- test[complete.cases(test),]
+
+
+# if there is a from to a NA, and that from also occurs to a non NA to, then add an equal portion to those occurences
+# i dont think thsi shoud be an equal proportion, come fix
+tmp.join <- test[is.na(test$to), ]
+for (i in unique(tmp.join$from)){
+  # i=unique(tmp.join$from)[1]
+  if (sum(i==test$to, na.rm = T) == 1){
+    # print(i)
+    # print(sum(test[test$from == i, "weight"]))
+    test[test$from == i, "weight"] <- sum(test[test$from == i, "weight"])
+  }
+}
+tmp.join <- tmp.join[tmp.join$from%in%test$to,]
+tmp.join
+
+
+test <- test[complete.cases(test),]
+
+
+
+# add  first, Y, and final, Z connection
+all_nodes <- unique(c(test$from, test$to))
+missing_conn_out <- data.frame()
+
+# add in missing connections
+missing_conn <- all_nodes[!all_nodes%in%test$from]
+
+
+
+
+
+for (node in missing_conn){
+  pos <- as.integer(tail(str_split(node, "_")[[1]], 1))
+  if (pos == as.integer(gsub(".*_", "", colnames(dat)[ncol(dat)]))){
+    nxt_pos <- "Z"
+  }else{
+    nxt_pos <- all_nodes[grepl(paste0("_", pos+1, "$"), all_nodes)]
+  }
+  for (to in nxt_pos){
+    if (length(nxt_pos)==1){
+      missing_conn_out <- rbind(missing_conn_out, 
+                                c(1, node, to))
+    }else{
+      # get the sum of the connections from the next node
+      to_weight <- sum(test[grepl(paste0(to, "$"), test$from), "weight"])
+      missing_conn_out <- rbind(missing_conn_out, 
+                                c(to_weight, node, to))
+    }
+  }
+}
+
+
+
+
+##############################################################################################################
+# TODO
+PROBLEM HAPPENDS IF THERE IS NO POSSIBLILTY FOR A SEQUENCE, I.E., THERE ARE NO SEQS THAT END BEFORE IT STARTS
+
+missing_conn_in <- all_nodes[!all_nodes%in%test$to]
+missing_conn_in <- missing_conn_in[!grepl("^Y$", missing_conn_in)]
+# gsub(".*_", "", missing_conn_in)
+for (node in missing_conn_in){
+  missing_conn_out <- rbind(missing_conn_out, 
+                            c(1, "Y", node))
+}
+
+
+
+##############################################################################################################
+
+
+
+colnames(missing_conn_out) <- colnames(test)
+missing_conn_out$weight <- as.numeric(missing_conn_out$weight)
+test <- rbind(test,
+              missing_conn_out)
+
+
+test <- test %>% 
+  group_by(from) %>% 
+  mutate(weight = ifelse(weight>=1, weight/sum(weight), weight))
+
+
+
+
+test$from[grepl("^Y", test$from)] <- "Y_0"
+
+
+
+
+g <- graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) %>% 
+  set_edge_attr("weight", value = test$weight)
+
+# plot(g)
+require(visNetwork)
+data <- toVisNetworkData(g)
+data$edges$label <- round(data$edges$weight, 3)
+data$edges$value <- data$edges$weight*5
+data$nodes$color.highlight.border <- "red"
+n <- visNetwork(nodes = data$nodes, edges = data$edges) %>%
+  visEdges(arrows = "to") %>% 
+  visPhysics(enabled = F)
+n %>% 
+  visInteraction(multiselect=T, selectable=T) %>% 
+  visOptions(selectedBy = list(
+    variable = "label",
+    style = "width:500px",
+    multiple = TRUE, sort = FALSE
+  ))
+
+
+
+
+# I think this will act to reweight those tht cross over to the min
+test.tmp <- test
+test.tmp$capacity <- test.tmp$weight
+g.tmp <- g
+E(g.tmp)$capacity <- as.integer(E(g.tmp)$weight*1000)
+mf <- max_flow(g.tmp, source = "Y_0", target = "Z")
+E(g)$weight <- mf$flow/1000
+# test.tmp$capacity=E(g)$weight
+
+
+
+
+
+# this is basically ba slightly edited, bad version of the max flow algorithm
+run <- 0
+out_paths <- out_min_weight <- list()
+out_remainder <- NULL
+delete_this <- NULL
+delete_this_too <- g
+
+
+
+
+
+
+
+
+max_algo=2
+
+# max_algo=1
+# # take the mac flow and iterate down
+# max_algo=2
+# take the path with the smallest node and find the best path that goes through that node (does not account for ties)
+
+
+# intermediate_gs <- list()
+all_paths <- all_simple_paths(g, from = "Y_0", to = "Z")
+
+if (max_algo == 1){
+  while (run <= length(all_paths)){
+    g.tmp <- g
+    # make largest smallest
+    E(g.tmp)$weight <- 1/(E(g.tmp)$weight) #/max(E(g)$weight))
+    p <- shortest_paths(g.tmp, from = "Y_0", to = "Z", mode = "out")$vpath[[1]]
+    p.weights <- E(g, path = p)$weight
+    # n.nodes <- length(p.weights)
+    p.weights <- p.weights #[-n.nodes]
+    if (!any(p.weights<=0)){
+      out_paths <- out_paths %>% 
+        append(list(names(p)))
+      out_min_weight <- out_min_weight %>% 
+        append(min(p.weights))
+      
+      
+      p.weights.delete <- E(delete_this_too, path = p)$weight
+      delete_this <- c(delete_this,
+                       prod((p.weights.delete/14))
+      )
+      
+      # update weights
+      E(g, path = p)$weight <- p.weights-min(p.weights)
+      E(g, path = p)$weight <- ifelse(E(g, path = p)$weight < 0, 0, E(g, path = p)$weight)
+      # print(E(g, path = p)$weight)
+      
+      # intermediate_gs <- intermediate_gs %>% 
+      #   append(g)
+      
+    }else{
+      run <- run + 1
+    }
+  }}else if (max_algo == 2){
+    while (run <= length(all_paths)){
+      all_paths <- all_simple_paths(g.tmp, from = "Y_0", to = "Z")
+      # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+      all_paths_cost <- lapply(all_paths, function(p) 
+        sum(E(g.tmp, path = p)$weight))
+      # sorting like this will ensure that the path selected is that with the best route, however, neither this or the which.min(all_paths_weight) accounts for ties
+      all_paths <- all_paths[order(unlist(all_paths_cost), decreasing = F)]
+      
+      all_paths_weight <- lapply(all_paths, function(p) ifelse(
+        min(E(g.tmp, path = p)$weight)>0,
+        sum(E(g.tmp, path = p)$weight-min(E(g.tmp, path = p)$weight)),
+        NA
+      ))
+      if (all(is.na(all_paths_weight))){
+        break
+      }else{
+        p <- all_paths[[which.min(all_paths_weight)]]
+        p.weights <- E(g.tmp, path = p)$weight
+        
+        out_paths <- append(out_paths, list(names(p)))
+        out_min_weight <- append(out_min_weight, min(p.weights))
+        
+        # update weights
+        E(g.tmp, path = p)$weight <- p.weights-min(p.weights)
+        
+        run <- run + 1
+      }
+    }
+  }
+
+
+
+
+
+
+out_remainder <- g
+
+# for (i in 1:length(out_paths)){
+#   out_paths[[i]] <- names(out_paths[[i]])
+# }
+df_out <- cbind(freq = unlist(out_min_weight), 
+                # delete_this = delete_this,
+                do.call(rbind.data.frame, out_paths))
+df_out$freq <- round(df_out$freq/sum(df_out$freq), 2)
+
+
+df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub("_.*", "", x)) %>% 
+  as.data.frame() %>% 
+  unite("Seq", sep = "")
+
+df_out
+
+
+
+if (max_algo==1){
+  data2 <- toVisNetworkData(g)
+}else{
+  data2 <- toVisNetworkData(g.tmp)
+}
+data2$edges$label <- round(data2$edges$weight, 3)
+data2$edges$value <- data2$edges$weight*5
+data2$nodes$color.highlight.border <- "red"
+n2 <- visNetwork(nodes = data2$nodes, edges = data2$edges) %>%
+  visEdges(arrows = "to") %>% 
+  visPhysics(enabled = F) %>% 
+  visInteraction(multiselect=T, selectable=T)
+
+n2

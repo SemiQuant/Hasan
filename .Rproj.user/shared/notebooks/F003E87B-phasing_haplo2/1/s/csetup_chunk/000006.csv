@@ -1,0 +1,2 @@
+"0","require(reticulate)"
+"0","use_python(""/usr/local/opt/python/libexec/bin/python"")"

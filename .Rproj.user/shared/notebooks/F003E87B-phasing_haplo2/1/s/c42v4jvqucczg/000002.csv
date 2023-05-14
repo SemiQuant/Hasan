@@ -1,0 +1,14 @@
+"0","require(stringr)
+require(tidyverse)
+phase_out <- py$var_df
+phase_out[phase_out == ""NaN""] <- ""N""
+phase_out <- phase_out %>% 
+  group_by_all() %>% 
+  summarise(Count = n())
+"
+"2","`summarise()` regrouping output by 'rpoC_1221', 'Rv0678_amplicon4_111', 'Rv0678_amplicon4_112', 'Rv0678_amplicon4_114' (override with `.groups` argument)
+"
+"0","phase_out <- phase_out %>% unite(""Seq"", -Count, remove = F, sep = '')"
+"0",""
+"0","# remove rows with only Ns"
+"0","phase_out <- phase_out[grepl(""[agctAGCT]"", phase_out$Seq), ]"
