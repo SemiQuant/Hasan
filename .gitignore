@@ -1,1 +1,8 @@
 old
+.Rproj.user
+.ipynb_checkpoints
+.$Plan.drawio.bkp
+.DS_Store
+.RData
+.Rhistory
+.gitignore
