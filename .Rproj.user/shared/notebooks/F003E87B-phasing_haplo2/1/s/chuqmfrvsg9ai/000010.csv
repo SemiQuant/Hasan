@@ -1,7 +1,0 @@
-"0","df_out$seq <- apply(df_out[,3:(ncol(df_out)-1)], 2, function(x) gsub(""_.*"", """", x)) %>% 
-  as.data.frame() %>% 
-  unite(""Seq"", sep = """")
-"
-"2","Error in apply(df_out[, 3:(ncol(df_out) - 1)], 2, function(x) gsub(""_.*"",  : 
-  object 'df_out' not found
-"

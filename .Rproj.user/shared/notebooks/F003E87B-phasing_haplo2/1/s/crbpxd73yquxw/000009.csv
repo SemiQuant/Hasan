@@ -1,6 +1,0 @@
-"0","g <- graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) %>% 
-  set_edge_attr(""weight"", value = test$weight)
-"
-"2","Error in graph_from_edgelist(as.matrix(test[-c(1)]), directed = T) : 
-  could not find function ""graph_from_edgelist""
-"
