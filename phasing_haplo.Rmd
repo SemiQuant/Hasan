@@ -17,6 +17,8 @@ reticulate::use_condaenv("hasan", required = TRUE)
 
 ```{r inputs, include=FALSE, echo=FALSE}
 source("inputs.R")
+# bam="/Users/semiquant/Bioinformatics/Projects/Hasan/example/example_pairedBWA_sorted.bam"
+# snps="/Users/semiquant/Bioinformatics/Projects/Hasan/example/snps.tsv"
 ```
 
 ```{python phase mutations, include=FALSE, echo=FALSE}
@@ -27,46 +29,45 @@ samfile = pysam.AlignmentFile(r.bam, "rb")
 var_dic = {}
 
 with open(r.snps) as f:
-  next(f) # skip header line
-  for line in f:
-    (CHROM, POS, REF, ALT, TYPE) = line.split()
-    var_dic.setdefault(CHROM, {}).setdefault(int(POS), {}).setdefault('call', []).append(ALT)
-    
-    for chrom in var_dic:
-      if chrom not in samfile.references:
+    next(f) # skip header line
+    for line in f:
+        (CHROM, POS, REF, ALT, TYPE) = line.split()
+        var_dic.setdefault(CHROM, {}).setdefault(int(POS), {}).setdefault('call', []).append(ALT)
+
+for chrom in var_dic:
+    if chrom not in samfile.references:
         print(chrom, " not found in bam file!")
         continue
-      for i in var_dic[chrom]:
+    
+    for i in var_dic[chrom]:
         read_calls = {}
         for pileupcolumn in samfile.pileup(chrom, i, i+1):
-          for pileupread in pileupcolumn.pileups:
-            try:
-              ref_pos = pileupread.alignment.get_reference_positions()[pileupread.query_position]
-              if ref_pos == i and not pileupread.is_del:
-                query_name = pileupread.alignment.query_name
-                read_call_tmp = pileupread.alignment.query_sequence[pileupread.query_position]
-                if query_name in read_calls:
-                  if read_calls[query_name] == read_call_tmp:
-                    break
-                  else:
-                    var_dic[chrom][i][query_name] = "N"
-                    else:
-                      if read_call_tmp in var_dic[chrom][i]["call"]:
-                        var_dic[chrom][i][query_name] = read_call_tmp
+            for pileupread in pileupcolumn.pileups:
+                try:
+                    ref_pos = pileupread.alignment.get_reference_positions()[pileupread.query_position]
+                    if ref_pos == i and not pileupread.is_del:
+                        query_name = pileupread.alignment.query_name
+                        read_call_tmp = pileupread.alignment.query_sequence[pileupread.query_position]
+                        if query_name in read_calls:
+                            if read_calls[query_name] == read_call_tmp:
+                                break
+                            else:
+                                var_dic[chrom][i][query_name] = "N"
                         else:
-                          var_dic[chrom][i][query_name] = "N"
-                          read_calls[query_name] = read_call_tmp
-                          except:
-                            pass
-                          
-                          
-                          # Convert the dictionary to a pandas dataframe
-                          var_df = pd.DataFrame.from_dict({(i,j): var_dic[i][j] for i in var_dic.keys() for j in var_dic[i].keys()}, orient='columns')
-                          # Rename the columns of the dataframe to include the chromosome and position information
+                            if read_call_tmp in var_dic[chrom][i]["call"]:
+                                var_dic[chrom][i][query_name] = read_call_tmp
+                            else:
+                                var_dic[chrom][i][query_name] = "N"
+                            read_calls[query_name] = read_call_tmp
+                except:
+                    pass
+
+# Convert the dictionary to a pandas dataframe
+var_df = pd.DataFrame.from_dict({(i,j): var_dic[i][j] for i in var_dic.keys() for j in var_dic[i].keys()}, orient='columns')
+# Rename the columns of the dataframe to include the chromosome and position information
 cnms = []
 for col in var_df.columns.values:
-  cnms.append(col[0] + "_" + str(col[1]))
-  
+    cnms.append(col[0] + "_" + str(col[1]))
 var_df.columns = cnms
 var_df = var_df.drop(var_df.index[0])
                             

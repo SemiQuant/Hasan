@@ -1,5 +1,13 @@
 # Hasan
 
+
+TODO
+make code better
+make outputs nicer
+make input from vcf file
+
+
+
 # bacterialPopulationReconstruction
 
 ![](Plan.png)
@@ -10,17 +18,23 @@ This takes in two files, a bam alignment of short read amplicons and a table of 
 
 # Installation
 [install R software](https://www.r-project.org/)
-R packages
-	DT
-	visNetwork
-	igraph
-	stringr
-	tidyverse
-	reticulate
+
+### R packages
+- DT
+- visNetwork
+- igraph
+- stringr
+- tidyverse
+- reticulate
+
 
 [install python3 and conda](https://docs.conda.io/en/latest/miniconda.html)
-make conda environment
+
+### make conda environment
+
+```
 conda env create -n hasan --file hasan_conda.yml
+```
 
 
 # Usage
